@@ -1,0 +1,12 @@
+/home/jonyroy/Desktop/project/img/query/query-20-1.jpg
+/home/jonyroy/Desktop/project/img/query/query-20-2.jpg
+/home/jonyroy/Desktop/project/img/query/query-20-3.jpg
+/home/jonyroy/Desktop/project/img/query/query-50-1.jpg
+/home/jonyroy/Desktop/project/img/query/query-50-2.jpg
+/home/jonyroy/Desktop/project/img/query/query-100-1.jpg
+/home/jonyroy/Desktop/project/img/query/query-100-2.jpg
+/home/jonyroy/Desktop/project/img/query/query-100-3.jpg
+/home/jonyroy/Desktop/project/img/query/query-100-4.jpg
+/home/jonyroy/Desktop/project/img/query/query-100-5.jpg
+/home/jonyroy/Desktop/project/img/query/query-1000-1.jpg
+/home/jonyroy/Desktop/project/img/query/notbanknote.jpg

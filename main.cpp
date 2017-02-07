@@ -11,17 +11,18 @@ using namespace std;
 using namespace cv;
 
 // Global Variables
-Size size(1024, 720);
-char ImgNames[] = "/home/jonyroy/Desktop/project/trainImage.txt";
-char queryName[] = "/home/jonyroy/Desktop/project/queryImgnames.txt";
-string audioPath = "/home/jonyroy/Desktop/project/audio/";
+Size size(700,350);
+char ImgNames[] = "/home/goutam/Desktop/banknote/trainImage.txt";
+char queryName[] = "/home/goutam/Desktop/banknote/queryImgnames.txt";
+string audioPath = "/home/goutam/Desktop/banknote/audio/";
 string audio[] = {"10", "20", "50", "100", "500", "1000"};
 string audioExt = ".wav";
-int readTrainImgNames( vector<string>& trainImgnames )
+
+int readImgNames( vector<string>& trainImgnames,char imgpath[] )
 {
 	trainImgnames.clear();
 	ifstream file;
-	file.open(ImgNames);
+	file.open(imgpath);
 
 	while ( !file.eof() )
 	{
@@ -36,28 +37,11 @@ int readTrainImgNames( vector<string>& trainImgnames )
 	file.close();
 	return 0;
 }
-int readQueryImgNames(vector<string>& queryImgnames)
-{
-	queryImgnames.clear();
-	ifstream file;
-	file.open(queryName);
-	while (!file.eof())
-	{
-		string str;
-		getline(file, str);
-		if (str.empty())
-		{
-			break;
-		}
-		queryImgnames.push_back(str);
-	}
-	file.close();
-	return 0;
-}
+
 int findTaka(string s)
 {
 	string note[] = {"10", "20", "50", "100", "500", "1000"};
-	for (int i = 0; i < 6; i++)
+	for (int i = 5; i >= 0; i--)
 	{
 		size_t found = s.find(note[i]);
 		if (found != std::string::npos)
@@ -72,7 +56,7 @@ bool readTrainImgs(vector <Mat>& trainImages, vector<string>& trainImgNames )
 {
 	cout << "Reading the images..." << endl;
 
-	readTrainImgNames(trainImgNames);
+	readImgNames(trainImgNames,ImgNames);
 
 	if ( trainImgNames.empty() )
 	{
@@ -80,18 +64,18 @@ bool readTrainImgs(vector <Mat>& trainImages, vector<string>& trainImgNames )
 		return false;
 	}
 	int readImageCount = 0;
-	for ( size_t i = 0; i < trainImgNames.size(); i++ )
+	for ( int i = 0; i < trainImgNames.size(); i++ )
 	{
 		string filename = trainImgNames[i];
-		Mat img1 = imread( filename, CV_LOAD_IMAGE_GRAYSCALE );
-		Mat img;
-		resize(img1, img, size);
+		Mat img = imread( filename, CV_LOAD_IMAGE_GRAYSCALE );
 		if ( img.empty() )
 		{
 			cout << "Train image " << filename << " can not be read." << endl;
 			continue;
 		}
 		readImageCount++;
+		Mat img1;
+		resize(img,img1,size);
 		trainImages.push_back( img );
 	}
 	if ( !readImageCount )
@@ -115,10 +99,12 @@ bool createDetectorDescriptorMatcher( Ptr<FeatureDetector>& featureDetector,
 	featureDetector = FeatureDetector::create("SURF");
 	descriptorExtractor = DescriptorExtractor::create("SURF");
 	descriptorMatcher = DescriptorMatcher::create("FlannBased");
-	cout << "FeatureDetector Type is SURF\n";
-	cout << "DescriptorExtractor Type is SURF\n";
-	cout << "DescriptorMatcher Type is FlannBased\n";
+	cout << "  FeatureDetector Type is SURF\n";
+	cout << "  DescriptorExtractor Type is SURF\n";
+	cout << "  DescriptorMatcher Type is FlannBased\n";
 }
+
+
 
 int detectKeypointsTrainImg(vector<Mat>& trainImages, vector<vector<KeyPoint> >& trainKeypoints,
                             Ptr<FeatureDetector> & featureDetector )
@@ -129,9 +115,10 @@ int detectKeypointsTrainImg(vector<Mat>& trainImages, vector<vector<KeyPoint> >&
 	featureDetector->detect( trainImages, trainKeypoints );
 	tm.stop();
 	double trainkeytime = tm.getTimeMilli();
-	cout << "Detecting KeyPoint Train Images = " << trainkeytime << " ms\n";
+	//cout << "Detecting KeyPoint Train Images = " << trainkeytime << " ms\n";
 	return 0;
 }
+
 
 int processingQueryImg(Mat & queryImages, vector<KeyPoint> & queryKeypoints,
                        Mat & queryDescriptors , Ptr<FeatureDetector> & featureDetector,
@@ -144,15 +131,16 @@ int processingQueryImg(Mat & queryImages, vector<KeyPoint> & queryKeypoints,
 	descriptorExtractor->compute( queryImages, queryKeypoints, queryDescriptors );
 	tm.stop();
 	double queryprocessingtime = tm.getTimeMilli();
-	cout << "Query Processing Time = " << queryprocessingtime << " ms\n";
+	//cout << "Query Processing Time = " << queryprocessingtime << " ms\n";
 	return 0;
 }
+
 
 
 void computeDescriptorTrainImgs(vector<Mat>& trainImages, vector<vector<KeyPoint> >& trainKeypoints, vector<Mat>& trainDescriptors,
                                 Ptr<DescriptorExtractor> & descriptorExtractor )
 {
-	cout << "< Computing descriptors for keypoints..." << endl;
+	cout << "Computing descriptors for keypoints........" << endl;
 	TickMeter tm;
 	tm.start();
 	descriptorExtractor->compute( trainImages, trainKeypoints, trainDescriptors );
@@ -167,33 +155,30 @@ void computeDescriptorTrainImgs(vector<Mat>& trainImages, vector<vector<KeyPoint
 		counter++;
 	}
 
-	cout << counter << " Total train descriptors count: " << totalTrainDesc << endl;
+	//cout << counter << " Total train descriptors count: " << totalTrainDesc << endl;
 }
 
 
-
-
+void trainDatabaseImg(vector<Mat>& trainDescriptors,Ptr<DescriptorMatcher>& descriptorMatcher)
+{
+	descriptorMatcher->add( trainDescriptors );
+	descriptorMatcher->train();
+}
 void matchDescriptors(Mat& queryDescriptors, vector<Mat>& trainDescriptors,
                       vector<DMatch>& matches, Ptr<DescriptorMatcher>& descriptorMatcher )
 {
 	//cout << "Set train descriptors collection in the matcher and match query descriptors to them..." << endl;
-	TickMeter tm;
+	//TickMeter tm;
 
-	tm.start();
-	descriptorMatcher->add( trainDescriptors );
-	descriptorMatcher->train();
-	tm.stop();
-	double buildTime = tm.getTimeMilli();
-
-	tm.start();
+	//tm.start();
 	descriptorMatcher->match( queryDescriptors, matches );
-	tm.stop();
-	double matchTime = tm.getTimeMilli();
+	//tm.stop();
+	//double matchTime = tm.getTimeMilli();
 
 	//CV_Assert( queryDescriptors.rows == (int)matches.size() || matches.empty() );
 
 	//cout << "Number of matches: " << matches.size() << endl;
-	cout << "Build time: " << buildTime << " ms; Match time: " << matchTime << " ms" << endl;
+	//cout << "Build time: " << buildTime << " ms; Match time: " << matchTime << " ms" << endl;
 }
 
 int main(int argc, char const *argv[])
@@ -210,40 +195,41 @@ int main(int argc, char const *argv[])
 	Ptr<DescriptorMatcher> descriptorMatcher;
 	vector<vector<KeyPoint> >trainKeypoints;
 
-
+    TickMeter tmm;
+    tmm.start();
 	createDetectorDescriptorMatcher(featureDetector, descriptorExtractor, descriptorMatcher);
 	detectKeypointsTrainImg(trainImgs, trainKeypoints, featureDetector);
 	computeDescriptorTrainImgs(trainImgs, trainKeypoints, trainDescriptors, descriptorExtractor);
-	vector<string> queryImagepath;
-	readQueryImgNames(queryImagepath);
-	for (int i = 0; i < queryImagepath.size() ; i++)
-		//VideoCapture cap(0);
-		//if (!cap.isOpened())
-		//{
-		//	return 0;
-		//}
-		//namedWindow("Camera", 1);
-		//for (;;)
+	trainDatabaseImg(trainDescriptors,descriptorMatcher);
+	tmm.stop();
+	cout<<"Database Setup time: "<<tmm.getTimeMilli()/1000.0<<" s"<<endl;
+	//vector<string> queryImagepath;
+	//readImgNames(queryImagepath,queryName);
+	for (int i = 0; i < 100 ; i++)
 	{
 
-		string objpath = queryImagepath[i];
-		cout << "Ok" << endl;
-		Mat query1 = imread( objpath, CV_LOAD_IMAGE_GRAYSCALE );
-		if (query1.empty())
+		string ob,objpath1,objpath; //= queryImagepath[i];
+		objpath1="/home/goutam/Desktop/banknote/img/query/query-";
+		cout<<"Please Enter Query Image Name:";
+		cin>>ob;
+		if(ob=="q")
+			return 0;
+		objpath1=objpath1+ob+".jpg";
+		//cout << "Ok" << endl;
+		TickMeter tm;
+		tm.start();
+		Mat query = imread( objpath1, CV_LOAD_IMAGE_GRAYSCALE );
+		Mat query1;
+		resize(query,query1,size);
+		if (query.empty())
 		{
-
 			cout << "Image can't read\n";
 			cout << objpath << endl;
 		}
-		Mat query;
-		//cap >> query;
-		//imshow("Camera", query);
-		//waitKey(0);
-		resize(query1, query, size);
 		vector<KeyPoint> queryKeypoints;
 		Mat queryDescriptors;
 		vector<DMatch> matches, match2;
-		processingQueryImg(query, queryKeypoints, queryDescriptors, featureDetector, descriptorExtractor);
+		processingQueryImg(query1, queryKeypoints, queryDescriptors, featureDetector, descriptorExtractor);
 		matchDescriptors(queryDescriptors, trainDescriptors, matches, descriptorMatcher);
 		int counter[50] = {0};
 		double mi = 100.0;
@@ -268,11 +254,11 @@ int main(int argc, char const *argv[])
 		{
 			//counter[match2[j].imgIdx]++;
 		}
-		cout << "Minimum Distances = " << mi << endl;
-		for (int i = 0; i < 25; i++)
+		//cout << "Minimum Distances = " << mi << endl;
+		/*for (int i = 0; i < 25; i++)
 		{
 			cout << counter[i] << " ";
-		}
+		}*/
 		cout << endl;
 		int ma = -1, index = -1;
 		for (int j = 0; j <= 24; j++)
@@ -283,7 +269,9 @@ int main(int argc, char const *argv[])
 				index = j;
 			}
 		}
-		cout << objpath << endl;
+		tm.stop();
+		cout<<tm.getTimeMilli()<<" ms"<<endl;
+		cout << objpath1 << endl;
 		if (index != -1)
 		{
 			int taka = findTaka(trainImgNames[index]);
@@ -291,7 +279,7 @@ int main(int argc, char const *argv[])
 			if (taka >= 0)
 			{
 				string b = audioPath + audio[taka] + audioExt;
-				cout << b << endl;
+				//cout << b << endl;
 				string cnt = "canberra-gtk-play -f " + b;
 				system(cnt.c_str());
 			}
@@ -301,7 +289,6 @@ int main(int argc, char const *argv[])
 			cout << "Not Found";
 		}
 		cout << endl << endl;
-		//cout << "DMatch Size = " << matches.size() << endl;
 	}
 	return 0;
 }

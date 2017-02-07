@@ -1,307 +1,134 @@
-#include <bits/stdc++.h>
-#include "opencv2/core/core.hpp"
-#include "opencv2/features2d/features2d.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/nonfree/features2d.hpp"
-#include "opencv2/nonfree/nonfree.hpp"
-#include "opencv2/legacy/legacy.hpp"
-#include "opencv2/contrib/contrib.hpp"
-#include <stdlib.h>
-using namespace std;
-using namespace cv;
+#include "allheaderfile.hpp"
 
-// Global Variables
-Size size(1024, 720);
-char ImgNames[] = "/home/jonyroy/Desktop/project/trainImage.txt";
-char queryName[] = "/home/jonyroy/Desktop/project/queryImgnames.txt";
-string audioPath = "/home/jonyroy/Desktop/project/audio/";
-string audio[] = {"10", "20", "50", "100", "500", "1000"};
-string audioExt = ".wav";
-int readTrainImgNames( vector<string>& trainImgnames )
+
+
+// Global Variable
+string path = "/home/goutam/Desktop/project/img/";
+string banknote[] = {"10-1", "10-2", "10-3", "10-4", "10-5", "10-6", "100-1",
+                     "100-2", "100-3", "100-4", "100-5", "100-6", "1000-1", "1000-2", "1000-3", "1000-4",
+                     "20-1", "20-2", "20-3", "20-4", "20-5", "20-6", "20-7",
+                     "20-8", "50-1", "50-2", "50-3", "50-4", "50-5", "500-1",
+                     "500-2", "500-3", "500-4",
+                    };
+int imgTemNum = 33;
+
+
+int surfDetector(Mat img_1, Mat img_2, vector<DMatch> & matches, Mat &descriptors_1, Mat &descriptors_2)
 {
-	trainImgnames.clear();
-	ifstream file;
-	file.open(ImgNames);
+	int minHessian = 400;
 
-	while ( !file.eof() )
-	{
-		string str;
-		getline( file, str );
-		if ( str.empty() )
-		{
-			break;
-		}
-		trainImgnames.push_back(str);
-	}
-	file.close();
-	return 0;
-}
-int readQueryImgNames(vector<string>& queryImgnames)
-{
-	queryImgnames.clear();
-	ifstream file;
-	file.open(queryName);
-	while (!file.eof())
-	{
-		string str;
-		getline(file, str);
-		if (str.empty())
-		{
-			break;
-		}
-		queryImgnames.push_back(str);
-	}
-	file.close();
-	return 0;
-}
-int findTaka(string s)
-{
-	string note[] = {"10", "20", "50", "100", "500", "1000"};
-	for (int i = 0; i < 6; i++)
-	{
-		size_t found = s.find(note[i]);
-		if (found != std::string::npos)
-		{
-			return i;
-		}
-	}
-	return -1;
-}
+	SurfFeatureDetector detector( minHessian );
 
-bool readTrainImgs(vector <Mat>& trainImages, vector<string>& trainImgNames )
-{
-	cout << "Reading the images..." << endl;
+	std::vector<KeyPoint> keypoints_1, keypoints_2;
 
-	readTrainImgNames(trainImgNames);
+	detector.detect( img_1, keypoints_1 );
+	detector.detect( img_2, keypoints_2 );
 
-	if ( trainImgNames.empty() )
-	{
-		cout << "Train image filenames can not be read." << endl << ">" << endl;
-		return false;
-	}
-	int readImageCount = 0;
-	for ( size_t i = 0; i < trainImgNames.size(); i++ )
-	{
-		string filename = trainImgNames[i];
-		Mat img1 = imread( filename, CV_LOAD_IMAGE_GRAYSCALE );
-		Mat img;
-		resize(img1, img, size);
-		if ( img.empty() )
-		{
-			cout << "Train image " << filename << " can not be read." << endl;
-			continue;
-		}
-		readImageCount++;
-		trainImages.push_back( img );
-	}
-	if ( !readImageCount )
-	{
-		cout << "All train images can not be read." << endl << ">" << endl;
-		return false;
-	}
-	else
-	{
-		cout << readImageCount << " train images were read." << endl;
-	}
-	return true;
-}
+	//-- Step 2: Calculate descriptors (feature vectors)
+	SurfDescriptorExtractor extractor;
 
 
-bool createDetectorDescriptorMatcher( Ptr<FeatureDetector>& featureDetector,
-                                      Ptr<DescriptorExtractor>& descriptorExtractor,
-                                      Ptr<DescriptorMatcher>& descriptorMatcher )
-{
-	cout << "Creating feature detector, descriptor extractor and descriptor matcher ..." << endl;
-	featureDetector = FeatureDetector::create("SURF");
-	descriptorExtractor = DescriptorExtractor::create("SURF");
-	descriptorMatcher = DescriptorMatcher::create("FlannBased");
-	cout << "FeatureDetector Type is SURF\n";
-	cout << "DescriptorExtractor Type is SURF\n";
-	cout << "DescriptorMatcher Type is FlannBased\n";
-}
+	extractor.compute( img_1, keypoints_1, descriptors_1 );
+	extractor.compute( img_2, keypoints_2, descriptors_2 );
 
-int detectKeypointsTrainImg(vector<Mat>& trainImages, vector<vector<KeyPoint> >& trainKeypoints,
-                            Ptr<FeatureDetector> & featureDetector )
-{
-	cout << endl << " Extracting keypoints from images..." << endl;
-	TickMeter tm;
-	tm.start();
-	featureDetector->detect( trainImages, trainKeypoints );
-	tm.stop();
-	double trainkeytime = tm.getTimeMilli();
-	cout << "Detecting KeyPoint Train Images = " << trainkeytime << " ms\n";
+	//-- Step 3: Matching descriptor vectors using FLANN matcher
+	FlannBasedMatcher matcher;
+	//std::vector< DMatch > matches;
+	matcher.match( descriptors_1, descriptors_2, matches );
 	return 0;
 }
 
-int processingQueryImg(Mat & queryImages, vector<KeyPoint> & queryKeypoints,
-                       Mat & queryDescriptors , Ptr<FeatureDetector> & featureDetector,
-                       Ptr<DescriptorExtractor> & descriptorExtractor )
+minMaxDistance findDistance(Mat descriptors_1, vector<DMatch> matches)
 {
-	//cout << endl << " Extracting keypoints from query image..." << endl;
-	TickMeter tm;
-	tm.start();
-	featureDetector->detect( queryImages, queryKeypoints );
-	descriptorExtractor->compute( queryImages, queryKeypoints, queryDescriptors );
-	tm.stop();
-	double queryprocessingtime = tm.getTimeMilli();
-	cout << "Query Processing Time = " << queryprocessingtime << " ms\n";
-	return 0;
+	double max_dist = 0; double min_dist = 100;
+
+	//-- Quick calculation of max and min distances between keypoints
+	for ( int i = 0; i < descriptors_1.rows; i++ )
+	{
+		double dist = matches[i].distance;
+		if ( dist < min_dist )
+		{
+			min_dist = dist;
+		}
+		if ( dist > max_dist )
+		{
+			max_dist = dist;
+		}
+	}
+	minMaxDistance a;
+	a.min = min_dist;
+	a.max = max_dist;
+	return a;
 }
-
-
-void computeDescriptorTrainImgs(vector<Mat>& trainImages, vector<vector<KeyPoint> >& trainKeypoints, vector<Mat>& trainDescriptors,
-                                Ptr<DescriptorExtractor> & descriptorExtractor )
+double goodMatches(Mat descriptors_1, vector<DMatch>matches, double min_dist)
 {
-	cout << "< Computing descriptors for keypoints..." << endl;
-	TickMeter tm;
-	tm.start();
-	descriptorExtractor->compute( trainImages, trainKeypoints, trainDescriptors );
-	tm.stop();
-	double computeTime = tm.getTimeMilli();
-	cout << "Train Image Extracting Time = " << computeTime << " ms\n";
-	int totalTrainDesc = 0;
 	int counter = 0;
-	for ( vector<Mat>::const_iterator tdIter = trainDescriptors.begin(); tdIter != trainDescriptors.end(); tdIter++ )
+	double totalGoodMatch = 0.0;
+	for ( int i = 0; i < descriptors_1.rows; i++ )
 	{
-		totalTrainDesc += tdIter->rows;
-		counter++;
+
+		if ( matches[i].distance <= max(1.112233 * min_dist, 0.01) )
+		{
+			totalGoodMatch += matches[i].distance;
+			counter++;
+		}
 	}
-
-	cout << counter << " Total train descriptors count: " << totalTrainDesc << endl;
+	//cout << "Counter = " << counter << endl;
+	return totalGoodMatch / (double)counter;
 }
 
-
-
-
-void matchDescriptors(Mat& queryDescriptors, vector<Mat>& trainDescriptors,
-                      vector<DMatch>& matches, Ptr<DescriptorMatcher>& descriptorMatcher )
+string cvtString(string ss)
 {
-	//cout << "Set train descriptors collection in the matcher and match query descriptors to them..." << endl;
-	TickMeter tm;
-
-	tm.start();
-	descriptorMatcher->add( trainDescriptors );
-	descriptorMatcher->train();
-	tm.stop();
-	double buildTime = tm.getTimeMilli();
-
-	tm.start();
-	descriptorMatcher->match( queryDescriptors, matches );
-	tm.stop();
-	double matchTime = tm.getTimeMilli();
-
-	//CV_Assert( queryDescriptors.rows == (int)matches.size() || matches.empty() );
-
-	//cout << "Number of matches: " << matches.size() << endl;
-	cout << "Build time: " << buildTime << " ms; Match time: " << matchTime << " ms" << endl;
+	string a = "";
+	for (int i = 0; i < ss.size(); i++)
+	{
+		if (ss[i] == '-')
+		{
+			break;
+		}
+		a += ss[i];
+	}
+	a += " Taka";
+	return a;
 }
-
 int main(int argc, char const *argv[])
 {
-
-	cv::initModule_nonfree();
-	vector <Mat> trainImgs, trainDescriptors;
-	vector<string> trainImgNames;
-	readTrainImgs(trainImgs, trainImgNames);
-
-
-	Ptr<FeatureDetector> featureDetector;
-	Ptr<DescriptorExtractor> descriptorExtractor;
-	Ptr<DescriptorMatcher> descriptorMatcher;
-	vector<vector<KeyPoint> >trainKeypoints;
-
-
-	createDetectorDescriptorMatcher(featureDetector, descriptorExtractor, descriptorMatcher);
-	detectKeypointsTrainImg(trainImgs, trainKeypoints, featureDetector);
-	computeDescriptorTrainImgs(trainImgs, trainKeypoints, trainDescriptors, descriptorExtractor);
-	vector<string> queryImagepath;
-	readQueryImgNames(queryImagepath);
-	for (int i = 0; i < queryImagepath.size() ; i++)
-		//VideoCapture cap(0);
-		//if (!cap.isOpened())
-		//{
-		//	return 0;
-		//}
-		//namedWindow("Camera", 1);
-		//for (;;)
+	/*freopen("/home/jonyroy/Desktop/project/img/trainImage.txt", "w", stdout);
+	for (int i = 1; i <= imgTemNum; i++)
 	{
+		string a = path + banknote[i - 1] + ".jpg";
+		cout << a << endl;
+	}*/
+	double gm = 100.0;
+	int ind = 0;
+	Size size(1000, 600);
+	string objpath = "/home/goutam/Desktop/project/img/obj.jpg";
+	Mat objimg = imread( objpath, CV_LOAD_IMAGE_GRAYSCALE );
+	//Mat objimg1;
+	//resize(objimg, objimg1, size);
+    cout<<"Processing........................"<<endl;
+	for (int i = 0; i < imgTemNum; i++)
+	{
+		string scenepath = path + banknote[i] + ".jpg";
+		Mat sceneimg = imread( scenepath, CV_LOAD_IMAGE_GRAYSCALE );
+		//Mat sceneimg1;
+		//resize(sceneimg, sceneimg1, size);
+		vector<DMatch> matches;
+		Mat descriptors_1, descriptors_2;
+		surfDetector(objimg, sceneimg, matches, descriptors_1, descriptors_2);
+		minMaxDistance a;
+		a = findDistance(descriptors_1, matches);
+		double m = goodMatches(descriptors_1, matches, a.min);
+		cout << "Min=" << a.min << " Max=" << a.max <<  " " << cvtString(banknote[i]) << " Average= " << m << endl;
 
-		string objpath = queryImagepath[i];
-		cout << "Ok" << endl;
-		Mat query1 = imread( objpath, CV_LOAD_IMAGE_GRAYSCALE );
-		if (query1.empty())
+		if (a.min < gm)
 		{
-
-			cout << "Image can't read\n";
-			cout << objpath << endl;
+			gm = a.min;
+			ind = i;
 		}
-		Mat query;
-		//cap >> query;
-		//imshow("Camera", query);
-		//waitKey(0);
-		resize(query1, query, size);
-		vector<KeyPoint> queryKeypoints;
-		Mat queryDescriptors;
-		vector<DMatch> matches, match2;
-		processingQueryImg(query, queryKeypoints, queryDescriptors, featureDetector, descriptorExtractor);
-		matchDescriptors(queryDescriptors, trainDescriptors, matches, descriptorMatcher);
-		int counter[50] = {0};
-		double mi = 100.0;
-		for (int j = 0; j < matches.size(); j++)
-		{
-			if (matches[j].distance < mi)
-			{
-				mi = matches[j].distance;
-			}
-			counter[matches[j].imgIdx]++;
-			//cout << "Dist= " << matches[i].distance << " Img= " << matches[i].imgIdx << " ";
-			//cout << "Query= " << matches[i].queryIdx << " Train= " << matches[i].trainIdx << endl;
-		}
-		for (int j = 0; j < matches.size(); j++)
-		{
-			if ( mi * 1.112233 > matches[j].distance )
-			{
-				match2.push_back(matches[j]);
-			}
-		}
-		for (int j = 0; j < match2.size(); j++)
-		{
-			//counter[match2[j].imgIdx]++;
-		}
-		cout << "Minimum Distances = " << mi << endl;
-		for (int i = 0; i < 25; i++)
-		{
-			cout << counter[i] << " ";
-		}
-		cout << endl;
-		int ma = -1, index = -1;
-		for (int j = 0; j <= 24; j++)
-		{
-			if (ma < counter[j])
-			{
-				ma = counter[j];
-				index = j;
-			}
-		}
-		cout << objpath << endl;
-		if (index != -1)
-		{
-			int taka = findTaka(trainImgNames[index]);
-
-			if (taka >= 0)
-			{
-				string b = audioPath + audio[taka] + audioExt;
-				cout << b << endl;
-				string cnt = "canberra-gtk-play -f " + b;
-				system(cnt.c_str());
-			}
-		}
-		else
-		{
-			cout << "Not Found";
-		}
-		cout << endl << endl;
-		//cout << "DMatch Size = " << matches.size() << endl;
 	}
+	string taka;
+	taka = cvtString(banknote[ind]);
+	cout << taka << endl;
 	return 0;
 }
